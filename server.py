@@ -7,6 +7,8 @@ from threading import Thread
 
 '''
 TODO: Add thread to check every ~5s if a client is still active
+TODO: if an error occurs and the server has to close, make it send a msg
+	  to all of its clients saying its closed.
 '''
 
 class Server:
@@ -20,6 +22,7 @@ class Server:
 		self.clients = []
 		self.client_msgs = []
 		self.buff_size = 4096
+		self.active_msg = "\a\b\c\d"
 		self.client_numbers = 0
 		self.client_user_names = {}
 
@@ -64,8 +67,10 @@ class Server:
 		'receives client msgs and stores them in client_msgs'
 		while True:
 			msg = client_sock.recv(self.buff_size).decode("utf-8")
-			if not msg: break
-			else: self.client_msgs.append((msg, client_num))
+			if not msg:
+				break
+			elif msg != self.active_msg:
+				self.client_msgs.append((msg, client_num))
 
 		print("\nClient {} - {} - Closed.\n".format(str(client_num), self.client_user_names[client_num]))
 		self.clients.remove(client)
@@ -83,7 +88,6 @@ class Server:
 							name = "SERVER MESSAGE" if n == -1 else self.client_user_names[n]
 							m_send = name + "\0" + m
 							c1.send(m_send.encode("utf-8"))
-
 
 if __name__ == '__main__':
 	os.system("clear")

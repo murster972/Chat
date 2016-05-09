@@ -5,16 +5,18 @@ import time
 import socket
 import threading
 
-'''
-TODO: Let users pick usernames when connecting to server instead of just
-	  using client numbers
-'''
-
 class Client:
 	def __init__(self):
-		host_addr = (input("Server IP [blank for local]: ") or "127.0.0.1", int(input("Server Port Number: ")))
-		self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.sock.connect(host_addr)
+		try:
+			host_addr = (input("Server IP [blank for local]: ") or "127.0.0.1", int(input("Server Port Number: ")))
+		except ValueError:
+			raise Exception("Invalid server port number.")
+
+		try:
+			self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			self.sock.connect(host_addr)
+		except OSError:
+			raise Exception("Can't connect to server. Invalid server IP or port number.")
 
 		self.buff_size = 4096
 		self.sending_msg = 0
@@ -25,7 +27,12 @@ class Client:
 
 		while not self.user_name: self.user_name = input("User Name: ")
 
-		self.sock.send(self.user_name.encode("utf-8"))
+		try:
+			self.sock.send(self.user_name.encode("utf-8"))
+		except (OSError, BrokenPipeError, ConnectionResetError):
+			print("Can't connect to server, may be closed.")
+			self.sock.close()
+			sys.exit(1)
 
 		intial_msg = self.sock.recv(self.buff_size).decode("utf-8").split("\0")
 		welcome_msg = intial_msg[1]
@@ -33,10 +40,10 @@ class Client:
 
 		print("\n{}\nYour user name: {}\n".format(welcome_msg, self.user_name))
 
-		recv_thread = threading.Thread(target=self.recv, daemon=True)
-		recv_thread.start()
-		show_thread = threading.Thread(target=self.show_msgs, daemon=True)
-		show_thread.start()
+		self.recv_thread = threading.Thread(target=self.recv, daemon=True)
+		self.recv_thread.start()
+		self.show_thread = threading.Thread(target=self.show_msgs, daemon=True)
+		self.show_thread.start()
 
 		print("CTRL-C to enter a message.\n")
 
@@ -60,14 +67,26 @@ class Client:
 			sys.exit(0)
 		else:
 			print("\n")
-			self.sock.send(msg)
-			self.sending_msg = 0
+			try:
+				self.sock.send(msg)
+				self.sending_msg = 0
+			except (BrokenPipeError, OSError):
+				self.sock.close()
+				print("Can't connect to server, may be closed.")
+				#raise Exception("Can't connect to server, may be closed.")
+				sys.exit(1)
 
 	def recv(self):
 		'Recieves message from server and stores them in a queue'
 		while True:
-			reply = self.sock.recv(self.buff_size).decode("utf-8")
-			if reply: self.recv_que.append(reply)
+			try:
+				reply = self.sock.recv(self.buff_size).decode("utf-8")
+				if reply: self.recv_que.append(reply)
+			except OSError:
+				self.sock.close()
+				print("Can't connect to server, may be closed.")
+				#raise Exception("Can't connect to server, may be closed.")
+				sys.exit(1)
 
 	def show_msgs(self):
 		'Prints messages currently in queue'
@@ -78,7 +97,6 @@ class Client:
 					c = tmp[i].split("\0")
 					print("{}: {}".format(c[0], c[1]))
 					self.recv_que.remove(tmp[i])
-
 
 if __name__ == '__main__':
 	os.system("clear")
