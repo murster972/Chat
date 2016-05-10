@@ -6,14 +6,16 @@ from random import randint
 from threading import Thread
 
 '''
-TODO: Add thread to check every ~5s if a client is still active
+TODO: check if a client is still active
 TODO: if an error occurs and the server has to close, make it send a msg
 	  to all of its clients saying its closed.
+TODO: let user pick port number to bind to.
 '''
 
 class Server:
 	def __init__(self):
 		addr = (input("Server IP [blank for local]: ") or "127.0.0.1", randint(1000, 2000))
+
 		self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.sock.bind(addr)
 		self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -22,7 +24,6 @@ class Server:
 		self.clients = []
 		self.client_msgs = []
 		self.buff_size = 4096
-		self.active_msg = "\a\b\c\d"
 		self.client_numbers = 0
 		self.client_user_names = {}
 
@@ -37,6 +38,8 @@ class Server:
 				client_thread.start()
 			except (KeyboardInterrupt, OSError):
 				break
+
+		for i, j in self.clients: i.send("\0".encode("utf-8"))
 		self.sock.close()
 		print("Server Closed.")
 
@@ -67,9 +70,10 @@ class Server:
 		'receives client msgs and stores them in client_msgs'
 		while True:
 			msg = client_sock.recv(self.buff_size).decode("utf-8")
-			if not msg:
+			if msg == "\0":
+				#single null char represents the client closing
 				break
-			elif msg != self.active_msg:
+			elif msg:
 				self.client_msgs.append((msg, client_num))
 
 		print("\nClient {} - {} - Closed.\n".format(str(client_num), self.client_user_names[client_num]))
