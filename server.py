@@ -6,18 +6,31 @@ from random import randint
 from threading import Thread
 
 '''
+NOTE: To connect to the server over the internet you use bind to '0.0.0.0' which binds to all
+	  addresses on the machine, and then use port forwarding.
+
 TODO: check if a client is still active
-TODO: if an error occurs and the server has to close, make it send a msg
-	  to all of its clients saying its closed.
-TODO: let user pick port number to bind to.
+TODO: handle errors
 '''
 
 class Server:
 	def __init__(self):
-		addr = (input("Server IP [blank for local]: ") or "127.0.0.1", randint(1000, 2000))
-
+		#49152–65535 are dynamic and private ports
+		addr = [input("Server IP [blank for local]: ") or "127.0.0.1", input("Set Port Number [blank for random]: ") or randint(49152, 65536)]
+		if not isinstance(addr[1], int):
+			print("Invalid port number, a port random number between 49152-65536 will be used instead.")
+			addr[1] = randint(49152, 65536)
+		addr = tuple(addr)
 		self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.sock.bind(addr)
+
+		try:
+			self.sock.bind(addr)
+		except OSError as e:
+			print(e)
+			print("Unable to bind server to {}".format(str(addr)))
+			self.sock.close()
+			sys.exit(1)
+
 		self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		self.sock.listen(5)
 
@@ -51,7 +64,7 @@ class Server:
 		cur_users = [self.client_user_names[x] for x in self.client_user_names]
 
 		while user_name in cur_users:
-			user_name += "_" + str(randint(0, 9999))
+			user_name += str(randint(0, 9999))
 
 		self.client_user_names[client_num] = user_name
 		print("\nUSER: {}, has connected to the server.\n".format(user_name))
@@ -76,9 +89,7 @@ class Server:
 			elif msg:
 				self.client_msgs.append((msg, client_num))
 
-		print("\nClient {} - {} - Closed.\n".format(str(client_num), self.client_user_names[client_num]))
-		self.clients.remove(client)
-		del self.client_user_names[client_num]
+		self.remove_client(client_sock, client_num)
 
 	def send_client_msgs(self):
 		'send msgs to every client, except client who sent the msg'
@@ -91,7 +102,20 @@ class Server:
 						if n1 != n:
 							name = "SERVER MESSAGE" if n == -1 else self.client_user_names[n]
 							m_send = name + "\0" + m
-							c1.send(m_send.encode("utf-8"))
+							try:
+								c1.send(m_send.encode("utf-8"))
+							except OSError:
+								self.remove_client(c1, n1)
+
+	def remove_client(self, client, client_num):
+		try:
+			self.clients.remove((client, client_num))
+			user = self.client_user_names[client_num]
+			del self.client_user_names[client_num]
+		except KeyError:
+			#client had not choosen a username
+			pass
+		print("Client: {}, {} has disconnected.".format(client_num, user))
 
 if __name__ == '__main__':
 	os.system("clear")
