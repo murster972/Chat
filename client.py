@@ -5,9 +5,7 @@ import time
 import socket
 import threading
 
-#TODO: create method that is called when an error occurs or the server closes
-#TODO: add timer for username reply, so it timesout if the server doesn't reply
-#	   within a given amount of time.
+#TODO: Clean up code
 
 class Client:
 	def __init__(self):
@@ -24,10 +22,10 @@ class Client:
 		self.server_active = 1
 		self.closing = 0
 		self.user_name = ""
+		self.intial_msg = ""
 
 		#enters username before connecting so the server doesnt have to deal wiht blank usernames
 		while not self.user_name and self.server_active: self.user_name = input("User Name: ")
-
 		try:
 			self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			self.sock.connect(host_addr)
@@ -37,12 +35,25 @@ class Client:
 
 		try:
 			self.sock.send(self.user_name.encode("utf-8"))
-			intial_msg = self.sock.recv(self.buff_size).decode("utf-8").split("\0")
-			welcome_msg = intial_msg[1]
+			print("Waiting for server to respond...")
+			timer = threading.Thread(target=self.timeout, daemon=True)
+			timer.start()
+
+			#seperate thread for intial message as the program wasn't exiting if 
+			#it timedout it was getting stuck on self.sock.recv()
+			intial_msg_thread = threading.Thread(target=self.get_intial_msg, daemon=True)
+			intial_msg_thread.start()
+
+			while not self.intial_msg and self.server_active: pass
+
+			#if statement allows timer thread to aquire lock and prevents 'fatal python error'
+			if not self.server_active: self.inactive_server()
+
+			welcome_msg = self.intial_msg[1]
 			if not welcome_msg or not self.user_name: raise UsernameError()
-			if self.user_name != intial_msg[0]:
-				print("The username you entered is being used so a random number has been added to the end.")
-				self.user_name = intial_msg[0]
+			if self.user_name != self.intial_msg[0]:
+				print("As the username you entered is being used a random number has been added to the end.")
+				self.user_name = self.intial_msg[0]
 		except (OSError, IndexError):
 			print("Server error, may be closed.")
 			self.sock.close()
@@ -68,19 +79,27 @@ class Client:
 
 		self.inactive_server()
 
+	def get_intial_msg(self):
+		'gets the intial message from the server'
+		self.intial_msg = self.sock.recv(self.buff_size).decode("utf-8").split("\0")
+
 	def send(self):
 		'Get users Message and sends to server'
 		if self.server_active:
 			self.sending_msg = 1
-			msg = input("\nMessage [leave blank to exit]\n: ")
-			msg = msg if msg else "\0"
 			try:
+				msg = input("\nMessage [leave blank to exit]\n: ")
+				msg = msg if msg else "\0"
 				self.sock.send(msg.encode("utf-8"))
-				self.sending_msg = 0
 			except OSError:
 				self.inactive_server()
+			except KeyboardInterrupt:
+				msg = "\0"
+				self.sock.send(msg.encode("utf-8"))
 
-			if not msg:
+			self.sending_msg = 0
+
+			if msg == "\0":
 				self.sock.close()
 				print("Closed Client.")
 				sys.exit(0)
@@ -118,7 +137,14 @@ class Client:
 			print("Closed client.")
 			sys.exit(1)
 
-class UsernameError(OSError): pass
+	def timeout(self):
+		'timesout if server doesnt send intial msg within ~15s'		
+		time.sleep(5)
+
+		if not self.intial_msg:
+			print("timed out.")
+			self.server_active = 0
+			self.inactive_server()
 
 if __name__ == '__main__':
 	os.system("clear")
