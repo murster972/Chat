@@ -5,10 +5,21 @@ import time
 import socket
 import threading
 
-#TODO: Clean up code
-
 class Client:
 	def __init__(self):
+		welcome_msg = """
+ __________________________________________________________
+|  ___       ___        ______   _   _   ______   _______  |
+| |   \     /   |  __  |  ____| | |_| | |  __  | |__   __| |
+| | |\ \   / /| | |__| | |      |  _  | | |__| |    | |    |
+| | | \ \ / / | |      | |____  | | | | |  __  |    | |    |
+| |_|  \___/  |_|      |______| |_| |_| |_|  |_|    |_|    |
+|                                                          |
+|_________________________ CLIENT _________________________|
+		"""
+
+		print(welcome_msg)		
+
 		try:
 			host_addr = (input("Server IP [blank for local]: ") or "127.0.0.1", int(input("Server Port Number: ")))
 			if host_addr[1] < 0 or host_addr[1] > 65535: raise ValueError()
@@ -85,6 +96,7 @@ class Client:
 
 	def send(self):
 		'Get users Message and sends to server'
+		#TODO: when user enters blank message ask if they wish to continue or exit
 		if self.server_active:
 			self.sending_msg = 1
 			try:

@@ -5,16 +5,20 @@ import socket
 from random import randint
 from threading import Thread
 
-'''
-NOTE: To connect to the server over the internet you use bind to '0.0.0.0' which binds to all
-	  addresses on the machine, and then use port forwarding.
-
-TODO: check if a client is still active
-TODO: handle errors
-'''
-
 class Server:
 	def __init__(self):
+		welcome_msg = """
+ __________________________________________________________
+|  ___       ___        ______   _   _   ______   _______  |
+| |   \     /   |  __  |  ____| | |_| | |  __  | |__   __| |
+| | |\ \   / /| | |__| | |      |  _  | | |__| |    | |    |
+| | | \ \ / / | |      | |____  | | | | |  __  |    | |    |
+| |_|  \___/  |_|      |______| |_| |_| |_|  |_|    |_|    |
+|                                                          |
+|_________________________ SERVER _________________________|
+"""
+		print(welcome_msg)
+
 		#49152–65535 are dynamic and private ports
 		addr = [input("Server IP [blank for local]: ") or "127.0.0.1", input("Set Port Number [blank for random]: ") or randint(49152, 65536)]
 		if not isinstance(addr[1], int):
